@@ -16,6 +16,12 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
 	}
 
+	@ExceptionHandler(ConfigChangeNotFoundException.class)
+	public ResponseEntity<ErrorResponse> handleConfigChangeNotFound(ConfigChangeNotFoundException ex) {
+		ErrorResponse body = new ErrorResponse(ex.getMessage(), Instant.now());
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+	}
+
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ErrorResponse> handleGeneric(Exception ex) {
 		ErrorResponse body = new ErrorResponse("Unexpected error occurred", Instant.now());

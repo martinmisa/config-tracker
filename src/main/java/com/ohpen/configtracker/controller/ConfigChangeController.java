@@ -2,6 +2,7 @@ package com.ohpen.configtracker.controller;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
@@ -34,6 +35,11 @@ public class ConfigChangeController {
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
 			@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to) {
 		return configChangeService.getConfigChanges(type, from, to);
+	}
+
+	@GetMapping("/{id}")
+	public ConfigChange getConfigChangeById(@PathVariable UUID id) {
+		return configChangeService.getConfigChangeById(id);
 	}
 
 }

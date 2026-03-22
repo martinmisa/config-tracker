@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.ohpen.configtracker.dto.CreateConfigChangeRequest;
+import com.ohpen.configtracker.exception.ConfigChangeNotFoundException;
 import com.ohpen.configtracker.exception.InvalidConfigChangeException;
 import com.ohpen.configtracker.model.ChangeType;
 import com.ohpen.configtracker.model.ConfigChange;
@@ -44,6 +45,11 @@ public class ConfigChangeService {
 				.filter(c -> from == null || !c.getChangedAt().isBefore(from))
 				.filter(c -> to == null || !c.getChangedAt().isAfter(to))
 				.toList();
+	}
+
+	public ConfigChange getConfigChangeById(UUID id) {
+		return configChangeRepository.findById(id)
+				.orElseThrow(() -> new ConfigChangeNotFoundException("Config change not found for id: " + id));
 	}
 
 	private void validateCreateRequest(CreateConfigChangeRequest request) {
