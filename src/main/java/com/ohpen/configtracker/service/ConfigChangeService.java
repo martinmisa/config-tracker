@@ -1,6 +1,7 @@
 package com.ohpen.configtracker.service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -35,6 +36,14 @@ public class ConfigChangeService {
 				request.getReason());
 
 		return configChangeRepository.save(configChange);
+	}
+
+	public List<ConfigChange> getConfigChanges(ChangeType type, Instant from, Instant to) {
+		return configChangeRepository.findAll().stream()
+				.filter(c -> type == null || type.equals(c.getType()))
+				.filter(c -> from == null || !c.getChangedAt().isBefore(from))
+				.filter(c -> to == null || !c.getChangedAt().isAfter(to))
+				.toList();
 	}
 
 	private void validateCreateRequest(CreateConfigChangeRequest request) {
