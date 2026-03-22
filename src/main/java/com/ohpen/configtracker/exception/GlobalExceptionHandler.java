@@ -4,6 +4,7 @@ import java.time.Instant;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -20,6 +21,16 @@ public class GlobalExceptionHandler {
 	public ResponseEntity<ErrorResponse> handleConfigChangeNotFound(ConfigChangeNotFoundException ex) {
 		ErrorResponse body = new ErrorResponse(ex.getMessage(), Instant.now());
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+	}
+
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+	public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(MethodArgumentNotValidException ex) {
+		String message = ex.getBindingResult().getFieldErrors().stream()
+				.findFirst()
+				.map(err -> err.getField() + " " + err.getDefaultMessage())
+				.orElse("Validation failed");
+		ErrorResponse body = new ErrorResponse(message, Instant.now());
+		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
 	}
 
 	@ExceptionHandler(Exception.class)
