@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import com.ohpen.configtracker.dto.CreateConfigChangeRequest;
 import com.ohpen.configtracker.exception.ConfigChangeNotFoundException;
 import com.ohpen.configtracker.exception.InvalidConfigChangeException;
+import com.ohpen.configtracker.integration.MonitoringNotifier;
 import com.ohpen.configtracker.model.ChangeType;
 import com.ohpen.configtracker.model.ConfigChange;
 import com.ohpen.configtracker.repository.ConfigChangeRepository;
@@ -17,9 +18,12 @@ import com.ohpen.configtracker.repository.ConfigChangeRepository;
 public class ConfigChangeService {
 
 	private final ConfigChangeRepository configChangeRepository;
+	private final MonitoringNotifier monitoringNotifier;
 
-	public ConfigChangeService(ConfigChangeRepository configChangeRepository) {
+	public ConfigChangeService(ConfigChangeRepository configChangeRepository,
+			MonitoringNotifier monitoringNotifier) {
 		this.configChangeRepository = configChangeRepository;
+		this.monitoringNotifier = monitoringNotifier;
 	}
 
 	public ConfigChange createConfigChange(CreateConfigChangeRequest request) {
@@ -36,7 +40,11 @@ public class ConfigChangeService {
 				request.getChangedBy(),
 				request.getReason());
 
-		return configChangeRepository.save(configChange);
+		ConfigChange saved = configChangeRepository.save(configChange);
+		if (saved.isCritical()) {
+			monitoringNotifier.notifyCriticalChange(saved);
+		}
+		return saved;
 	}
 
 	public List<ConfigChange> getConfigChanges(ChangeType type, Instant from, Instant to) {
