@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import com.ohpen.configtracker.dto.CreateConfigChangeRequest;
@@ -25,6 +26,7 @@ public class ConfigChangeController {
 	}
 
 	@PostMapping
+	@ResponseStatus(HttpStatus.CREATED)
 	public ConfigChange createConfigChange(@Valid @RequestBody CreateConfigChangeRequest request) {
 		return configChangeService.createConfigChange(request);
 	}

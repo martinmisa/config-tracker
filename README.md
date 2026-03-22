@@ -1,17 +1,24 @@
-# config-tracker
+# Config Tracker Service (Ohpen Assignment)
 
-A small **Spring Boot** REST service that records **configuration changes** (for example credit limits or approval policies). It exposes APIs to create and query changes, applies **request and business validation**, and **simulates** notifying an external monitoring system when a change is marked **critical**.
+## Description
 
-**Stack:** Java 21, Spring Boot 3.5.x, Maven. Base package: `com.ohpen.configtracker`.
+REST API for **tracking configuration changes** in a system (for example credit limits or approval policies). Clients can record changes with structured input, **validate** them at the boundary and in the **service layer**, query history with optional filters, and retrieve a single change by id. Changes marked **critical** trigger a **monitoring notification** (implemented as a logging integration suitable for swapping to a real client later).
 
 ---
 
-## How to run
+## Tech Stack
+
+- Java 21
+- Spring Boot 3
+- Maven
+
+---
+
+## How to Run
 
 ### Prerequisites
 
-- **JDK 21**
-- **Maven** (optional if you use the included wrapper)
+- **Java 21** (JDK)
 
 ### Start the application
 
@@ -21,52 +28,23 @@ From the project root:
 ./mvnw spring-boot:run
 ```
 
-On Windows:
-
-```cmd
-mvnw.cmd spring-boot:run
-```
-
-The app listens on the default port **8080** unless overridden.
+The application listens on **port 8080** by default.
 
 ### Health check
 
-Spring Boot Actuator is included. After startup:
-
-```http
-GET http://localhost:8080/actuator/health
+```text
+http://localhost:8080/actuator/health
 ```
 
 ---
 
-## API endpoints
+## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/config-changes` | Create a configuration change record. |
-| `GET` | `/api/config-changes` | List all changes, optionally filtered by `type`, `from`, and `to`. |
-| `GET` | `/api/config-changes/{id}` | Get a single change by UUID. |
+### POST `/api/config-changes`
 
-**Query parameters (GET list, all optional):**
+**Description:** Creates a new configuration change. The server assigns `id` and `changedAt`. Successful creation returns **HTTP 201 Created** with the saved entity in the body.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `type` | `ADD`, `UPDATE`, or `DELETE` | Keep only changes of this type. |
-| `from` | ISO-8601 date-time | Keep changes with `changedAt` ≥ `from`. |
-| `to` | ISO-8601 date-time | Keep changes with `changedAt` ≤ `to`. |
-
----
-
-## Example requests and responses
-
-### Create a config change
-
-**Request**
-
-```http
-POST /api/config-changes
-Content-Type: application/json
-```
+**Example request**
 
 ```json
 {
@@ -80,7 +58,7 @@ Content-Type: application/json
 }
 ```
 
-**Response** `200 OK` — body is the persisted entity (JSON):
+**Example response** (201 Created)
 
 ```json
 {
@@ -96,95 +74,119 @@ Content-Type: application/json
 }
 ```
 
-If `critical` is `true`, the service invokes `MonitoringNotifier` (default implementation: **INFO** log line for the change id).
+`type` must be one of: `ADD`, `UPDATE`, `DELETE`. Business rules depend on the type (for example, `ADD` requires a non-blank `newValue`; `UPDATE` requires non-blank `oldValue` and `newValue` and that they differ).
 
 ---
 
-### List config changes
+### GET `/api/config-changes`
 
-**Request**
+**Description:** Returns all stored configuration changes as a JSON array. Optional query parameters filter the result **in the service layer** after loading from the repository.
+
+**Filtering**
+
+| Parameter | Meaning |
+|-----------|---------|
+| `type` | `ADD`, `UPDATE`, or `DELETE` — only matching records |
+| `from` | ISO-8601 date-time — `changedAt` must be **≥** `from` |
+| `to` | ISO-8601 date-time — `changedAt` must be **≤** `to` |
+
+**Example queries**
 
 ```http
 GET /api/config-changes
 ```
 
-**Response** `200 OK` — JSON array of `ConfigChange` objects.
-
----
-
-### Filter by type and time
-
-**Request**
-
 ```http
-GET /api/config-changes?type=UPDATE&from=2026-03-01T00:00:00Z&to=2026-03-31T23:59:59Z
+GET /api/config-changes?type=UPDATE
 ```
 
-**Response** `200 OK` — array of changes matching **all** supplied filters (type match, `changedAt` within the inclusive window).
+```http
+GET /api/config-changes?type=ADD&from=2026-03-01T00:00:00Z&to=2026-03-31T23:59:59Z
+```
+
+**Example response** (200 OK) — abbreviated:
+
+```json
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "changedAt": "2026-03-22T12:00:00.123456789Z",
+    "ruleName": "max-credit-limit",
+    "type": "UPDATE",
+    "oldValue": "50000",
+    "newValue": "75000",
+    "critical": true,
+    "changedBy": "policy-admin",
+    "reason": "Q1 policy revision"
+  }
+]
+```
 
 ---
 
-### Get by id
+### GET `/api/config-changes/{id}`
 
-**Request**
+**Description:** Returns a single configuration change by UUID.
+
+**Example**
 
 ```http
 GET /api/config-changes/a1b2c3d4-e5f6-7890-abcd-ef1234567890
 ```
 
-**Response** `200 OK` — single `ConfigChange` object, or **404** if the id is unknown (see below).
+**Response** — 200 OK with the same JSON shape as a single element in the list above, or **404** if no record exists for that id.
 
 ---
 
-### Error responses
+## Error Handling
 
-Errors use a consistent JSON shape:
+A **`@RestControllerAdvice`** (`GlobalExceptionHandler`) maps exceptions to HTTP status codes and a small JSON body **`ErrorResponse`**: `message` and `timestamp` (UTC instant).
+
+**Example error response**
 
 ```json
 {
-  "message": "Human-readable explanation",
+  "message": "Config change not found for id: 00000000-0000-0000-0000-000000000000",
   "timestamp": "2026-03-22T12:00:00.123456789Z"
 }
 ```
 
-Typical cases:
+Typical mappings:
 
-| Situation | HTTP status | `message` (illustrative) |
-|-----------|-------------|---------------------------|
-| Bean validation failure (e.g. blank `ruleName`) | **400** | First field error, e.g. `ruleName must not be blank` |
-| Business rule violation (`InvalidConfigChangeException`) | **400** | e.g. `For UPDATE, oldValue and newValue must not be equal` |
-| Unknown id (`ConfigChangeNotFoundException`) | **404** | `Config change not found for id: …` |
-| Unhandled server error | **500** | `Unexpected error occurred` |
-
----
-
-## Design decisions
-
-- **In-memory storage** — A `ConcurrentHashMap`-backed repository keeps the assignment focused on API design, validation, and layering without database setup. It is easy to run and test locally.
-- **Two layers of validation** — **Jakarta Bean Validation** on `CreateConfigChangeRequest` enforces structural rules at the edge (non-blank `ruleName`, `changedBy`, `reason`; non-null `type`). **Service-layer rules** depend on `ChangeType` (e.g. ADD requires `newValue`; UPDATE requires differing old/new values). That split keeps HTTP concerns in the DTO and domain rules next to the use case.
-- **Simple repository contract** — The interface exposes `save`, `findById`, and `findAll` only. Listing filters are applied in the **service** with streams so the repository stays a thin persistence abstraction and can be swapped later (e.g. for JPA) without duplicating query logic prematurely.
-- **`MonitoringNotifier` interface** — Critical-change notification is behind an interface with a **logging** implementation. That keeps the service testable (mock the notifier) and leaves a clear seam for a real HTTP client or message publisher in production.
+| Case | HTTP status |
+|------|-------------|
+| Bean validation failure on the request body | 400 |
+| Business rule violation (`InvalidConfigChangeException`) | 400 |
+| Unknown id (`ConfigChangeNotFoundException`) | 404 |
+| Other unhandled errors | 500 with a generic message |
 
 ---
 
-## Trade-offs and limitations
+## Design Decisions
 
-- Data is **not persistent**; restarts clear all records.
+- **In-memory repository** — Keeps the assignment runnable without database setup while still separating persistence behind `ConfigChangeRepository` and an `InMemoryConfigChangeRepository` implementation.
+- **Layered architecture** — **Controller** handles HTTP; **service** owns use cases, business validation, and filtering for list; **repository** exposes `save`, `findById`, and `findAll` only.
+- **Validation split** — **Jakarta Bean Validation** on `CreateConfigChangeRequest` enforces required fields and non-blank strings at the API edge. **Service-layer rules** enforce behaviour that depends on `ChangeType` (ADD / UPDATE / DELETE).
+- **Monitoring notifier abstraction** — `MonitoringNotifier` is an interface; the default `LoggingMonitoringNotifier` logs at INFO for critical changes so the service stays testable and a real integration can be plugged in later.
+
+---
+
+## Trade-offs / Limitations
+
+- **No persistence** — data is lost on restart.
 - **No authentication or authorization**.
-- **No pagination or sorting** on list; large result sets load entirely in memory.
-- The monitoring integration is a **stub** (log only): **no retries, timeouts, or circuit breaking**.
-- List filtering loads **all** entities then filters in memory (acceptable for a demo, not for big datasets).
+- **No pagination** — list returns all matching rows in memory.
+- **No retry or circuit breaker** for the monitoring integration (logging only).
 
 ---
 
-## What I would improve for production
+## Future Improvements
 
-- **Persistent store** (e.g. PostgreSQL + Spring Data JPA or JDBC) with migrations.
-- **Structured logging**, request **correlation IDs**, and integration with a log/metrics stack.
-- **Resilient outbound calls** for real monitoring (retries, backoff, circuit breaker, dead-letter handling).
-- **Metrics and tracing** (Micrometer, OpenTelemetry) and dashboards.
-- **Pagination, sorting, and index-backed queries** for list endpoints.
-- **Security** (OAuth2 / API keys), rate limiting, and input size limits where appropriate.
+- **Database** (e.g. PostgreSQL) with migrations and a durable repository implementation.
+- **Retry / circuit breaker** for outbound monitoring calls when replacing the logger.
+- **Structured logging** and **correlation IDs** for requests.
+- **Pagination and sorting** for list endpoints.
+- **Metrics** (and broader observability) for API usage and integration health.
 
 ---
 
@@ -194,4 +196,4 @@ Typical cases:
 ./mvnw test
 ```
 
-The suite includes **unit tests** for `ConfigChangeService` (mocked repository and notifier) and **MockMvc integration tests** against the REST API.
+Includes unit tests for the service (mocked repository and notifier) and Spring **MockMvc** integration tests for the REST API.

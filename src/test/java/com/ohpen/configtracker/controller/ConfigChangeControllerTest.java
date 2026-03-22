@@ -39,7 +39,7 @@ class ConfigChangeControllerTest {
 						  "reason": "integration"
 						}
 						"""))
-				.andExpect(status().isOk())
+				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.id").exists())
 				.andExpect(jsonPath("$.ruleName").value("limit-a"))
 				.andExpect(jsonPath("$.type").value("ADD"))
@@ -78,7 +78,7 @@ class ConfigChangeControllerTest {
 						  "reason": "r"
 						}
 						""", ruleName)))
-				.andExpect(status().isOk());
+				.andExpect(status().isCreated());
 
 		mockMvc.perform(get("/api/config-changes"))
 				.andExpect(status().isOk())
@@ -99,7 +99,7 @@ class ConfigChangeControllerTest {
 						  "reason": "r"
 						}
 						"""))
-				.andExpect(status().isOk())
+				.andExpect(status().isCreated())
 				.andReturn();
 
 		String id = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
