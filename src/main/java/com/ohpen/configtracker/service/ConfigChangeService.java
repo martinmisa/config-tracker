@@ -1,0 +1,74 @@
+package com.ohpen.configtracker.service;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+
+import com.ohpen.configtracker.dto.CreateConfigChangeRequest;
+import com.ohpen.configtracker.exception.InvalidConfigChangeException;
+import com.ohpen.configtracker.model.ChangeType;
+import com.ohpen.configtracker.model.ConfigChange;
+import com.ohpen.configtracker.repository.ConfigChangeRepository;
+
+@Service
+public class ConfigChangeService {
+
+	private final ConfigChangeRepository configChangeRepository;
+
+	public ConfigChangeService(ConfigChangeRepository configChangeRepository) {
+		this.configChangeRepository = configChangeRepository;
+	}
+
+	public ConfigChange createConfigChange(CreateConfigChangeRequest request) {
+		validateCreateRequest(request);
+
+		ConfigChange configChange = new ConfigChange(
+				UUID.randomUUID(),
+				Instant.now(),
+				request.getRuleName(),
+				request.getType(),
+				request.getOldValue(),
+				request.getNewValue(),
+				request.isCritical(),
+				request.getChangedBy(),
+				request.getReason());
+
+		return configChangeRepository.save(configChange);
+	}
+
+	private void validateCreateRequest(CreateConfigChangeRequest request) {
+		ChangeType type = request.getType();
+		if (type == null) {
+			throw new InvalidConfigChangeException("Change type must not be null");
+		}
+		switch (type) {
+			case ADD -> {
+				if (isBlank(request.getNewValue())) {
+					throw new InvalidConfigChangeException("For ADD, newValue must not be null or blank");
+				}
+			}
+			case DELETE -> {
+				if (isBlank(request.getOldValue())) {
+					throw new InvalidConfigChangeException("For DELETE, oldValue must not be null or blank");
+				}
+			}
+			case UPDATE -> {
+				if (isBlank(request.getOldValue())) {
+					throw new InvalidConfigChangeException("For UPDATE, oldValue must not be null or blank");
+				}
+				if (isBlank(request.getNewValue())) {
+					throw new InvalidConfigChangeException("For UPDATE, newValue must not be null or blank");
+				}
+				if (request.getOldValue().equals(request.getNewValue())) {
+					throw new InvalidConfigChangeException("For UPDATE, oldValue and newValue must not be equal");
+				}
+			}
+		}
+	}
+
+	private static boolean isBlank(String value) {
+		return value == null || value.isBlank();
+	}
+
+}
