@@ -48,6 +48,9 @@ public class ConfigChangeService {
 	}
 
 	public List<ConfigChange> getConfigChanges(ChangeType type, Instant from, Instant to) {
+		if (from != null && to != null && from.isAfter(to)) {
+			throw new InvalidConfigChangeException("from must not be after to");
+		}
 		return configChangeRepository.findAll().stream()
 				.filter(c -> type == null || type.equals(c.getType()))
 				.filter(c -> from == null || !c.getChangedAt().isBefore(from))
@@ -67,11 +70,17 @@ public class ConfigChangeService {
 		}
 		switch (type) {
 			case ADD -> {
+				if (!isBlank(request.getOldValue())) {
+					throw new InvalidConfigChangeException("For ADD, oldValue must be null or blank");
+				}
 				if (isBlank(request.getNewValue())) {
 					throw new InvalidConfigChangeException("For ADD, newValue must not be null or blank");
 				}
 			}
 			case DELETE -> {
+				if (!isBlank(request.getNewValue())) {
+					throw new InvalidConfigChangeException("For DELETE, newValue must be null or blank");
+				}
 				if (isBlank(request.getOldValue())) {
 					throw new InvalidConfigChangeException("For DELETE, oldValue must not be null or blank");
 				}

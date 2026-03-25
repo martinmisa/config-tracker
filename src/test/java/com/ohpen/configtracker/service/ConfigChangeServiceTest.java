@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -83,6 +84,32 @@ class ConfigChangeServiceTest {
 	}
 
 	@Test
+	void shouldThrowInvalidConfigChangeExceptionWhenAddHasNonBlankOldValue() {
+		CreateConfigChangeRequest request = new CreateConfigChangeRequest(
+				"rule", ChangeType.ADD, "previous", "500", false, "u", "r");
+
+		assertThatThrownBy(() -> configChangeService.createConfigChange(request))
+				.isInstanceOf(InvalidConfigChangeException.class)
+				.hasMessageContaining("ADD")
+				.hasMessageContaining("oldValue");
+
+		verify(configChangeRepository, never()).save(any());
+	}
+
+	@Test
+	void shouldThrowInvalidConfigChangeExceptionWhenDeleteHasNonBlankNewValue() {
+		CreateConfigChangeRequest request = new CreateConfigChangeRequest(
+				"rule", ChangeType.DELETE, "500", "should-be-empty", false, "u", "r");
+
+		assertThatThrownBy(() -> configChangeService.createConfigChange(request))
+				.isInstanceOf(InvalidConfigChangeException.class)
+				.hasMessageContaining("DELETE")
+				.hasMessageContaining("newValue");
+
+		verify(configChangeRepository, never()).save(any());
+	}
+
+	@Test
 	void shouldThrowInvalidConfigChangeExceptionWhenAddHasBlankNewValue() {
 		CreateConfigChangeRequest request = new CreateConfigChangeRequest(
 				"rule", ChangeType.ADD, null, "   ", false, "u", "r");
@@ -125,6 +152,18 @@ class ConfigChangeServiceTest {
 		assertThatThrownBy(() -> configChangeService.getConfigChangeById(id))
 				.isInstanceOf(ConfigChangeNotFoundException.class)
 				.hasMessageContaining(id.toString());
+	}
+
+	@Test
+	void shouldThrowInvalidConfigChangeExceptionWhenFromIsAfterTo() {
+		Instant from = Instant.parse("2026-03-10T00:00:00Z");
+		Instant to = Instant.parse("2026-03-01T00:00:00Z");
+
+		assertThatThrownBy(() -> configChangeService.getConfigChanges(null, from, to))
+				.isInstanceOf(InvalidConfigChangeException.class)
+				.hasMessage("from must not be after to");
+
+		verifyNoInteractions(configChangeRepository);
 	}
 
 }
