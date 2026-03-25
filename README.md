@@ -38,6 +38,15 @@ http://localhost:8080/actuator/health
 
 ---
 
+## Bonus Features
+
+- **Custom metrics** — `GET /metrics` exposes lightweight, application-specific aggregates (total changes, critical count, counts by `ChangeType`) computed from the in-memory repository. This is separate from Spring Boot Actuator’s Micrometer endpoint under `/actuator/metrics`.
+- **Correlation ID tracing** — A servlet filter accepts optional request header **`X-Correlation-Id`**. If it is missing or blank, a new UUID is generated. The value is stored in SLF4J **MDC** under `correlationId`, echoed on the **response** as `X-Correlation-Id`, and cleared after the request in a `finally` block (no change to controller or service code).
+- **Monitoring notifier retries** — `LoggingMonitoringNotifier` uses **Spring Retry** (`@EnableRetry`, `@Retryable`): up to **3** attempts with **200 ms** fixed backoff on `RuntimeException`. A **`@Recover`** method logs when all attempts fail. For demonstration only: if **`reason`** contains **`fail`** (case-insensitive), the notifier throws to simulate instability; normal payloads succeed after the INFO log.
+- **Additional validation** — The service enforces stricter **edge cases** for create and list: e.g. `ADD` requires `oldValue` to be null or blank; `DELETE` requires `newValue` to be null or blank; when both `from` and `to` are supplied on the list endpoint, **`from` must not be after `to`**.
+
+---
+
 ## API Endpoints
 
 ### POST `/api/config-changes`
@@ -74,7 +83,7 @@ http://localhost:8080/actuator/health
 }
 ```
 
-`type` must be one of: `ADD`, `UPDATE`, `DELETE`. Business rules depend on the type (for example, `ADD` requires a non-blank `newValue`; `UPDATE` requires non-blank `oldValue` and `newValue` and that they differ).
+`type` must be one of: `ADD`, `UPDATE`, `DELETE`. Business rules depend on the type (for example: `ADD` requires a non-blank `newValue` and `oldValue` must be null or blank; `DELETE` requires a non-blank `oldValue` and `newValue` must be null or blank; `UPDATE` requires non-blank `oldValue` and `newValue` and they must differ).
 
 ---
 
@@ -160,6 +169,8 @@ Typical mappings:
 | Unknown id (`ConfigChangeNotFoundException`) | 404 |
 | Other unhandled errors | 500 with a generic message |
 
+**Edge case validation** — Beyond bean validation, the service returns **400** with a clear `message` for rules such as: inappropriate `oldValue` / `newValue` for `ADD` or `DELETE`, equal old/new on `UPDATE`, and invalid list windows when **`from` is after `to`** (with both query parameters present).
+
 ---
 
 ## Design Decisions
@@ -167,7 +178,7 @@ Typical mappings:
 - **In-memory repository** — Keeps the assignment runnable without database setup while still separating persistence behind `ConfigChangeRepository` and an `InMemoryConfigChangeRepository` implementation.
 - **Layered architecture** — **Controller** handles HTTP; **service** owns use cases, business validation, and filtering for list; **repository** exposes `save`, `findById`, and `findAll` only.
 - **Validation split** — **Jakarta Bean Validation** on `CreateConfigChangeRequest` enforces required fields and non-blank strings at the API edge. **Service-layer rules** enforce behaviour that depends on `ChangeType` (ADD / UPDATE / DELETE).
-- **Monitoring notifier abstraction** — `MonitoringNotifier` is an interface; the default `LoggingMonitoringNotifier` logs at INFO for critical changes so the service stays testable and a real integration can be plugged in later.
+- **Monitoring notifier abstraction** — `MonitoringNotifier` is an interface; the default `LoggingMonitoringNotifier` logs at INFO for critical changes (with **Spring Retry** and a **`@Recover`** path on repeated failure) so the service stays testable and a real integration can be plugged in later.
 
 ---
 
@@ -183,10 +194,11 @@ Typical mappings:
 ## Future Improvements
 
 - **Database** (e.g. PostgreSQL) with migrations and a durable repository implementation.
-- **Retry / circuit breaker** for outbound monitoring calls when replacing the logger.
-- **Structured logging** and **correlation IDs** for requests.
+- **Micrometer / Actuator** — richer JVM and HTTP metrics (beyond the custom `/metrics` JSON), dashboards, and SLO-aligned indicators.
+- **Circuit breaker** and **bulkhead** patterns for real monitoring APIs, complementing retry.
+- **Distributed tracing** (e.g. W3C `traceparent`, OpenTelemetry) building on correlation IDs and structured logs.
+- **Structured logging** — log patterns that include MDC (e.g. `correlationId`) consistently across libraries.
 - **Pagination and sorting** for list endpoints.
-- **Metrics** (and broader observability) for API usage and integration health.
 
 ---
 
