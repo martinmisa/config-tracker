@@ -2,11 +2,14 @@ package com.ohpen.configtracker.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
 import com.ohpen.configtracker.dto.CreateConfigChangeRequest;
+import com.ohpen.configtracker.dto.MetricsResponse;
 import com.ohpen.configtracker.exception.ConfigChangeNotFoundException;
 import com.ohpen.configtracker.exception.InvalidConfigChangeException;
 import com.ohpen.configtracker.integration.MonitoringNotifier;
@@ -61,6 +64,15 @@ public class ConfigChangeService {
 	public ConfigChange getConfigChangeById(UUID id) {
 		return configChangeRepository.findById(id)
 				.orElseThrow(() -> new ConfigChangeNotFoundException("Config change not found for id: " + id));
+	}
+
+	public MetricsResponse getMetrics() {
+		List<ConfigChange> all = configChangeRepository.findAll();
+		int totalChanges = all.size();
+		int criticalChanges = (int) all.stream().filter(ConfigChange::isCritical).count();
+		Map<String, Long> changesByType = all.stream()
+				.collect(Collectors.groupingBy(c -> c.getType().name(), Collectors.counting()));
+		return new MetricsResponse(totalChanges, criticalChanges, changesByType);
 	}
 
 	private void validateCreateRequest(CreateConfigChangeRequest request) {
